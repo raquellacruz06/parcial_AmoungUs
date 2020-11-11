@@ -1,11 +1,30 @@
 class Jugador{
 	const color
 	const mochila = []
-	var nivelSospecha = 40
+	var property nivelSospecha = 40
 	var tareasARealizar = #{}
 	var property nave
 	var tareasRealizadas = #{}
-	
+	var personalidad
+	var estado 
+	method sacarDeLaLista()
+	method salir() {
+		nave.sacarJugador(self)
+		 continuaJugando = false
+		}
+	method cambiarEstado(nuevoEstado) {
+		estado = nuevoEstado
+	}
+	method votoPersona() = nave.votosPara(self)
+	method tieneMochilaVacia() = mochila.isEmpty()
+	method votar(){
+		if(continuaJugando){
+			personalidad.criterioVotacion(nave)
+			} else {}
+	}
+	method llamarAUnaReunionDeEmergencia(){
+		nave.iniciarVotacion()
+	}
 	method realizarSabotaje()
 	method realizarCualquierTarea(){
 		self.realizarTarea(tareasARealizar.anyOne())
@@ -37,18 +56,49 @@ class Jugador{
 	method encontrarTodosLosItems(items){
 		items.forEach({unItem=>self.buscarEnMochila(unItem)})
 	}
-	
 }
 
 object nave {
 	const jugadores = #{}
-	var cantTripulantes 
-	var cantImpostores
 	var  nivelOxigeno
+	const tripulantes = #{}
+	const impostores = #{}
+	const votados = []
+	method verQuienGano(){
+		if(impostores.isEmpty()){
+			self.error("Ganaron los tripulantes")
+		}else if(self.cantidadImpostores() == self.cantidadTripulantes()){
+			self.error("Ganaron los impostores")
+	}
+	method sacarImpostor(persona){
+		impostores.remove(persona)
+	}
+	method sacarTripulante(persona){
+		tripulantes.remove(persona)
+	}
+	method sacarJugador(jugador){
+		jugadores.remove(jugador)
+	}
+	method expulsarJugador(jugador){
+		jugador.salir()
+		jugador.sacarDeLaLista()
+		self.verQuienGano()
+	}
+	method expulsarJugadorMasVotado() = self.expulsarJugador(self.elMasVotado())
+	method votosPara(jugador) = votados.ocurrenceOf(jugador)
+	method elMasVotado() = jugadores.max({unJugador => unJugador.votoPersona()})	//al poner max, nos evitamos tirar un error
+	method agregarNuevoVotado(votado) {
+		votados.add(votado)
+	} 
 	method algunoTieneTuboOxigeno() = jugadores.any({unJugador => unJugador.buscarEnMochila(tuboOxigeno)})
 	method aumentarNivelOxigeno(cantidad){
 		nivelOxigeno += cantidad
 	}
+	method cantidadImpostores() = impostores.size()
+	method cantidadTripulantes() = tripulantes.size()
+	method iniciarVotacion() {
+		jugadores.forEach({unJugador=>unJugador.votar()})
+		}
 	method oxigenoAcabado() = nivelOxigeno == 0
 	method chequearTareas() = jugadores.all({unJugador => unJugador.cumplioTarea()})
 	method verSiGanaron() {
@@ -61,13 +111,14 @@ object nave {
 class Impostor inherits Jugador{
 	override method cumplioTodasLasTareas() = true
 	override method realizarTarea(tarea) {}
+	override method sacarDeLaLista(){
+		nave.sacarImpostor(self)
+	}
 }
 class Tripulante inherits Jugador{
-	
-	method buscarEnMochila(elemento){
-		mochila.contains(elemento)
-	}
-	
+	override method sacarDeLaLista(){
+		nave.sacarTripulante(self)
+	}	
 }
 class Tarea{
 	method hacerTarea(persona){
@@ -75,7 +126,6 @@ class Tarea{
 		persona.aumentarNivelSospecha(self.nivelRequerido())
 		persona.eliminarItem(self.itemsRequeridos())
 	}
-	
 }
 object arreglarTableroElectrico inherits Tarea{
 	var property itemsRequeridos = [llaveInglesa]
@@ -115,5 +165,46 @@ object reducirOxigeno inherits Sabotaje{
 }
 
 object impugnarAUnJugador inherits Sabotaje{
+	method impugnar(jugador){
+		jugador.cambiarEstado(impugnado)
+	}
+}
+
+class Personalidad{
+	method votar(nave){
+		nave.agregarNuevoVotado(self.devolverVotado(nave))
+	}
+	method devolverVotado(nave) = nave.jugadores().findOrDefault({unJugador => self.criterioVotacion()},votoEnBlanco)
 	
 }
+
+object troll inherits Personalidad{
+	method criterioVotacion(nave) = nave.jugadores().findOrDefault({unJugador => !unJugador.esSospechoso()},votoEnBlanco)	
+}
+
+object detective inherits Personalidad{
+	method elMasSospechoso(nave) = nave.jugadores().max({unJugador=> unJugador.nivelSospecha()}) 			//TERMINAR
+	method criterioVotacion(nave) = self.elMasSospechoso(nave)
+}
+object materialistas inherits Personalidad{
+	method criterioVotacion(nave) = nave.jugadores().findOrDefault({unJugador => unJugador.tieneMochilaVacia()}, votoEnBlanco)
+}
+
+object votoEnBlanco inherits Jugador{
+	override method salir(){}
+}
+
+object jugando{
+	method votar() = personalidad.criterioVotacion(nave)
+			
+}
+object expulsado{
+	method votar() {}
+}
+object impugnado{
+	method votar() = votoEnBlanco
+}
+
+
+
+
